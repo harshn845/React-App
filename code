@@ -1,0 +1,90 @@
+// App.js
+import React, { useEffect } from 'react';
+import { View, Text, Button, Alert } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
+import notifee, { EventType } from '@notifee/react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+
+const Stack = createStackNavigator();
+
+function HomeScreen({ navigation }) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>React Native Call Notification App</Text>
+    </View>
+  );
+}
+
+function CallScreen({ route }) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>{route.params?.type || 'Call'} Incoming...</Text>
+    </View>
+  );
+}
+
+const App = () => {
+  useEffect(() => {
+    requestUserPermission();
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      displayNotification(remoteMessage);
+    });
+
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      displayNotification(remoteMessage);
+    });
+
+    notifee.onForegroundEvent(({ type, detail }) => {
+      if (type === EventType.PRESS) {
+        handleNotificationPress(detail.notification);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const requestUserPermission = async () => {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    if (enabled) {
+      const fcmToken = await messaging().getToken();
+      console.log('FCM Token:', fcmToken);
+    }
+  };
+
+  const displayNotification = async (message) => {
+    await notifee.displayNotification({
+      title: message.notification.title,
+      body: message.notification.body,
+      android: {
+        channelId: 'calls',
+        pressAction: {
+          id: 'default',
+        },
+      },
+      data: message.data,
+    });
+  };
+
+  const handleNotificationPress = (notification) => {
+    if (notification.data?.type === 'call') {
+      navigationRef.current?.navigate('Call', { type: notification.data.callType });
+    }
+  };
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Call" component={CallScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+const navigationRef = React.createRef();
+
+export default App;
